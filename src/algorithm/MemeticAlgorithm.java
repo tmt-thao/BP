@@ -3,6 +3,7 @@ package src.algorithm;
 import src.object.Trip;
 import src.object.Stop;
 import src.object.TimeMatrix;
+import src.object.Solution;
 import java.util.*;
 
 public class MemeticAlgorithm {
@@ -11,8 +12,8 @@ public class MemeticAlgorithm {
     private int populationSize;
     private int generations;
     private double mutationRate;
-    private List<int[]> population;
-    private int[] bestSolution;
+    private List<Solution> population;
+    private Solution bestSolution;
     private Map<Integer, Stop> stopMap;
 
     public MemeticAlgorithm(List<Trip> trips, TimeMatrix timeMatrix, List<Stop> stops, int populationSize, int generations, double mutationRate) {
@@ -36,21 +37,20 @@ public class MemeticAlgorithm {
                 tripList.add(trip.getIndex());
             }
             Collections.shuffle(tripList);
-            int[] solution = tripList.stream().mapToInt(Integer::intValue).toArray();
+            int[] tripsArray = tripList.stream().mapToInt(Integer::intValue).toArray();
+            Solution solution = new Solution(tripsArray);
+            solution.setFitness(evaluateFitness(solution));
             population.add(solution);
             updateBestSolution(solution);
         }
     }
 
-    public int evaluateFitness(int[] solution) {
-        // if (!chargingSimulation.isFeasible(solution)) {
-        //     return Integer.MAX_VALUE;
-        // }
-
+    public int evaluateFitness(Solution solution) {
+        int[] trips = solution.getTrips();
         int numTurns = 1;
-        for (int i = 0; i < solution.length - 1; i++) {
-            Trip tripA = trips.get(solution[i]);
-            Trip tripB = trips.get(solution[i + 1]);
+        for (int i = 0; i < trips.length - 1; i++) {
+            Trip tripA = this.trips.get(trips[i]);
+            Trip tripB = this.trips.get(trips[i + 1]);
             Stop endStopA = stopMap.get(tripA.getEndStopId());
             Stop startStopB = stopMap.get(tripB.getStartStopId());
             int travelTime = timeMatrix.getTravelTime(endStopA.getIndex(), startStopB.getIndex());
@@ -62,66 +62,76 @@ public class MemeticAlgorithm {
         return numTurns;
     }
 
-    private void updateBestSolution(int[] solution) {
-        if (bestSolution == null || evaluateFitness(solution) < evaluateFitness(bestSolution)) {
-            bestSolution = solution.clone();
+    private void updateBestSolution(Solution solution) {
+        if (bestSolution == null || solution.getFitness() < bestSolution.getFitness()) {
+            bestSolution = new Solution(solution.getTrips().clone());
+            bestSolution.setFitness(solution.getFitness());
         }
     }
 
-    public int[] selection() {
+    public Solution selection() {
         Random rand = new Random();
         int tournamentSize = 3;
-        int[] best = null;
+        Solution best = null;
         for (int i = 0; i < tournamentSize; i++) {
-            int[] candidate = population.get(rand.nextInt(population.size()));
-            if (best == null || evaluateFitness(candidate) < evaluateFitness(best)) {
+            Solution candidate = population.get(rand.nextInt(population.size()));
+            if (best == null || candidate.getFitness() < best.getFitness()) {
                 best = candidate;
             }
         }
         return best;
     }
 
-    public int[][] crossover(int[] parent1, int[] parent2) {
+    public Solution[] crossover(Solution parent1, Solution parent2) {
         Random rand = new Random();
-        int length = parent1.length;
+        int length = parent1.getTrips().length;
         int crossoverPoint = rand.nextInt(length);
         
-        int[] child1 = new int[length];
-        int[] child2 = new int[length];
+        int[] child1Trips = new int[length];
+        int[] child2Trips = new int[length];
         
-        System.arraycopy(parent1, 0, child1, 0, crossoverPoint);
-        System.arraycopy(parent2, crossoverPoint, child1, crossoverPoint, length - crossoverPoint);
+        System.arraycopy(parent1.getTrips(), 0, child1Trips, 0, crossoverPoint);
+        System.arraycopy(parent2.getTrips(), crossoverPoint, child1Trips, crossoverPoint, length - crossoverPoint);
         
-        System.arraycopy(parent2, 0, child2, 0, crossoverPoint);
-        System.arraycopy(parent1, crossoverPoint, child2, crossoverPoint, length - crossoverPoint);
+        System.arraycopy(parent2.getTrips(), 0, child2Trips, 0, crossoverPoint);
+        System.arraycopy(parent1.getTrips(), crossoverPoint, child2Trips, crossoverPoint, length - crossoverPoint);
         
-        return new int[][] { child1, child2 };
+        Solution child1 = new Solution(child1Trips);
+        Solution child2 = new Solution(child2Trips);
+        
+        return new Solution[] { child1, child2 };
     }
 
-    public int[] mutate(int[] solution) {
+    public Solution mutate(Solution solution) {
         Random rand = new Random();
+        int[] trips = solution.getTrips().clone();
         if (rand.nextDouble() < mutationRate) {
-            int i = rand.nextInt(solution.length);
-            int j = rand.nextInt(solution.length);
+            int i = rand.nextInt(trips.length);
+            int j = rand.nextInt(trips.length);
             
-            int temp = solution[i];
-            solution[i] = solution[j];
-            solution[j] = temp;
+            int temp = trips[i];
+            trips[i] = trips[j];
+            trips[j] = temp;
         }
-        return solution;
+        Solution mutatedSolution = new Solution(trips);
+        mutatedSolution.setFitness(evaluateFitness(mutatedSolution));
+        return mutatedSolution;
     }
 
-    public int[] localSearch(int[] solution) {
-        int[] bestLocalSolution = solution.clone();
-        int bestFitness = evaluateFitness(bestLocalSolution);
+    public Solution localSearch(Solution solution) {
+        Solution bestLocalSolution = new Solution(solution.getTrips().clone());
+        bestLocalSolution.setFitness(solution.getFitness());
+        int bestFitness = bestLocalSolution.getFitness();
         
-        for (int i = 0; i < solution.length; i++) {
-            for (int j = i + 1; j < solution.length; j++) {
-                int[] newSolution = solution.clone();
-                int temp = newSolution[i];
-                newSolution[i] = newSolution[j];
-                newSolution[j] = temp;
-                int newFitness = evaluateFitness(newSolution);
+        for (int i = 0; i < solution.getTrips().length; i++) {
+            for (int j = i + 1; j < solution.getTrips().length; j++) {
+                int[] newTrips = solution.getTrips().clone();
+                int temp = newTrips[i];
+                newTrips[i] = newTrips[j];
+                newTrips[j] = temp;
+                Solution newSolution = new Solution(newTrips);
+                newSolution.setFitness(evaluateFitness(newSolution));
+                int newFitness = newSolution.getFitness();
                 if (newFitness < bestFitness) {
                     bestLocalSolution = newSolution;
                     bestFitness = newFitness;
@@ -133,29 +143,30 @@ public class MemeticAlgorithm {
 
     public void evolve() {
         for (int gen = 0; gen < generations; gen++) {
-            List<int[]> newPopulation = new ArrayList<>();
+            List<Solution> newPopulation = new ArrayList<>();
             
-            newPopulation.add(bestSolution.clone());
+            newPopulation.add(new Solution(bestSolution.getTrips().clone()));
+            newPopulation.get(0).setFitness(bestSolution.getFitness());
             
             for (int i = 0; i < (populationSize - 1) / 2; i++) {
-                int[] parent1 = selection();
-                int[] parent2;
+                Solution parent1 = selection();
+                Solution parent2;
                 do {
                     parent2 = selection();
-                } while (Arrays.equals(parent1, parent2)); 
-                int[][] children = crossover(parent1, parent2);
+                } while (Arrays.equals(parent1.getTrips(), parent2.getTrips())); 
+                Solution[] children = crossover(parent1, parent2);
                 newPopulation.add(localSearch(mutate(children[0])));
                 newPopulation.add(localSearch(mutate(children[1])));
             }
             
             population = newPopulation;
-            for (int[] solution : population) {
+            for (Solution solution : population) {
                 updateBestSolution(solution);
             }
         }
     }
 
-    public int[] getBestSolution() {
+    public Solution getBestSolution() {
         return bestSolution;
     }
 }
