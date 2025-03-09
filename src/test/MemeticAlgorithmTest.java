@@ -18,14 +18,14 @@ public class MemeticAlgorithmTest {
 
         try {
             // Načítajte dáta zo súborov CSV pomocou DataLoader
-            List<Trip> trips = DataLoader.loadTrips("data/spoje_id_B1_3.csv");
+            List<Trip> trips = DataLoader.loadTrips("data/spoje_id_T4_3.csv");
             List<Stop> stops = DataLoader.loadStops("data/ZastavkyAll.csv");
             TimeMatrix timeMatrix = DataLoader.loadTimeMatrix("data/matrixTime.txt", stops.size());
 
             // Inicializujte memetický algoritmus
-            int populationSize = 50;
-            int generations = 200;
-            double mutationRate = 0.05;
+            int populationSize = 10;
+            int generations = 800;
+            double mutationRate = 0.1;
             MemeticAlgorithm algorithm = new MemeticAlgorithm(trips, timeMatrix, stops, populationSize, generations, mutationRate);
 
             // Meranie času trvania výpočtu
